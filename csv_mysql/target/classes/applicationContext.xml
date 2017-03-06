@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:batch="http://www.springframework.org/schema/batch"
+       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+                http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd
+                http://www.springframework.org/schema/batch http://www.springframework.org/schema/batch/spring-batch.xsd
+                http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc.xsd">
+      <!-- 开启组件扫描 -->
+      <context:annotation-config />
+      <!-- 组件扫描基础包 -->
+      <context:component-scan base-package="com.hsm" />
+      
+	  <!-- 配置数据源,主要给jdbcTemplate使用 -->
+	  <bean id="dataSource" class="org.apache.commons.dbcp.BasicDataSource" destroy-method="close">
+		  <property name="driverClassName" value="com.mysql.jdbc.Driver"/>
+		  <property name="url" value="jdbc:mysql://localhost/spring_batch_example"/>
+		  <property name="username" value="hsm"/>
+		  <property name="password" value="1994713"/>
+	  </bean>
+	  <!-- 配置事务管理器 -->
+	  <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource" />
+      </bean>
+      <!-- 配置jdbcTemplate bean -->
+      <bean id="jdbcTemplate" class="org.springframework.jdbc.core.JdbcTemplate">
+        <property name="dataSource" ref="dataSource" />
+      </bean>
+      
+      <!-- 管理job的组件,将job信息保存到数据库中 -->
+      <bean id="jobRepository" class="org.springframework.batch.core.repository.support.MapJobRepositoryFactoryBean">
+        <property name="transactionManager" ref="transactionManager" />
+      </bean>
+      <!-- 启动和管理spring batch作业工作流的组件 -->
+      <bean id="jobLauncher" class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+        <property name="jobRepository" ref="jobRepository" />
+      </bean>
+      <!-- 这个设置启动脚本 -->
+      <!--
+      <jdbc:initialize-database data-source="dataSource">
+        <jdbc:script location="org/springframework/batch/core/schema-drop-mysql.sql" />
+        <jdbc:script location="org/springframework/batch/core/schema-mysql.sql" />
+      </jdbc:initialize-database>
+      -->
+      
+      <!-- 1.读文件 -->
+      <bean id="productReader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+      	<property name="resource" value="classpath:sample.csv"></property>
+      	<!-- 输入文件  这里可以动态的指定文件 -->
+      	<!-- <property name="resource" value="file:#{jobParameters['inputFile']}" /> -->
+      	<!-- 跳过开头的一些行 -->
+      	<property name="linesToSkip" value="1" />
+      	<!-- 将每行映射城一个对象 -->
+      	<property name="lineMapper" >
+      		<bean class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+      			<!-- 根据某种分隔符来拆分 tokenizer(分词器)-->
+      			<property name="lineTokenizer">
+      				<bean class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer">
+      					<property name="names" value="id,name,description,quantity"></property>
+      				</bean>
+      			</property>
+      			<!-- 从拆分的字段中构建一个对象 -->
+      			<property name="fieldSetMapper">
+      				<bean class="com.hsm.readermapper.ProductFieldSetMapper" />
+      			</property>
+      		</bean>
+      	</property>
+      </bean>
+      
+    <!-- 2.处理软件 -->
+    <bean id="productProcessor" class="com.hsm.process.ProductItemProcessor" />
+	
+	<!-- 3.写文件 -->
+    <bean id="productWriter" class="com.hsm.writer.ProductItemWriter" />
+    
+    
+</beans>
